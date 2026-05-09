@@ -1,12 +1,13 @@
 # Pick this to be the same as .ruby-version
 FROM ruby:3.3
 
-RUN mkdir -p /app
-WORKDIR /app
-
-# Run everything as a non-root "deploy" user
+# Create deploy user and /app with correct ownership in one layer
 RUN groupadd --gid 1000 deploy \
-    && useradd --uid 1000 --gid 1000 -m deploy
+    && useradd --uid 1000 --gid 1000 -m deploy \
+    && mkdir -p /app \
+    && chown deploy:deploy /app
+
+WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
   build-essential \
