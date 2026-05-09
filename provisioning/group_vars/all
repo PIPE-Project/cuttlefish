@@ -1,11 +1,23 @@
-# group_vars/all
 ---
-github_users:
-  - 'br3nda'
-  - 'henare'
-  - 'ianheggie-oaf'
-  - 'jamezpolley'
-  - 'mlandauer'
-  - 'simonzippy'
-  - 'benrfairless'
+# Non-secret configuration. Secrets go in group_vars/secrets.yml (gitignored).
+# Copy secrets.yml.example to secrets.yml and fill in your values.
 
+# The domain name for your Cuttlefish installation (used for nginx, SSL, and .env)
+cuttlefish_domain: "your.domain.example.com"
+
+# PostgreSQL version to install
+postgresql_version: 16
+
+# Ruby version to install via RVM
+ruby_version: "3.3.5"
+
+# Whether to run certbot and obtain a Let's Encrypt certificate
+# Set to false if you're managing TLS certificates manually
+certbot_create: true
+
+# Whether to install and configure the New Relic infrastructure agent
+# Set new_relic_license_key in secrets.yml if enabling
+new_relic_enabled: false
+
+# New Relic app name (only used if new_relic_enabled: true)
+new_relic_app_name: "Cuttlefish"

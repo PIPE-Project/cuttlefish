@@ -1,18 +1,28 @@
 HOME=/home/deploy
+{% if google_analytics_code is defined and google_analytics_code %}
 GOOGLE_ANALYTICS_CODE={{ google_analytics_code }}
+{% endif %}
 SECRET_KEY_BASE={{ secret_key_base }}
 DEVISE_SECRET_KEY={{ devise_secret_key }}
+{% if new_relic_enabled | default(false) %}
 NEW_RELIC_LICENSE_KEY={{ new_relic_license_key }}
-NEW_RELIC_APP_NAME={{ new_relic_app_name }}
+NEW_RELIC_APP_NAME={{ new_relic_app_name | default('Cuttlefish') }}
+NEW_RELIC_AGENT_ENABLED=true
+{% else %}
+NEW_RELIC_AGENT_ENABLED=false
+{% endif %}
+{% if honeybadger_api_key is defined and honeybadger_api_key %}
 HONEYBADGER_API_KEY={{ honeybadger_api_key }}
+{% endif %}
 CUTTLEFISH_HASH_SALT="{{ cuttlefish_hash_salt }}"
 POSTFIX_LOG_PATH=/var/log/mail/mail.log
-CUTTLEFISH_SMTP_HOST=cuttlefish.oaf.org.au
-CUTTLEFISH_DOMAIN=cuttlefish.oaf.org.au
+CUTTLEFISH_SMTP_HOST={{ cuttlefish_domain }}
+CUTTLEFISH_DOMAIN={{ cuttlefish_domain }}
+{% if s3_bucket is defined and s3_bucket %}
 S3_BUCKET="{{ s3_bucket }}"
 AWS_ACCESS_KEY_ID="{{ aws_access_key_id }}"
 AWS_SECRET_ACCESS_KEY="{{ aws_secret_access_key }}"
+{% endif %}
 CUTTLEFISH_DOMAIN_CERT_CHAIN_FILE=/srv/www/shared/fullchain.pem
 CUTTLEFISH_DOMAIN_PRIVATE_KEY_FILE=/srv/www/shared/privkey.pem
-NEW_RELIC_AGENT_ENABLED={{ new_relic_agent_enabled }}
 JWT_SECRET={{ jwt_secret }}

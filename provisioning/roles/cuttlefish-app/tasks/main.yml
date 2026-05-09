@@ -16,26 +16,29 @@
     state: present
   tags: ['nginx', 'apt']
 
-- name: Add key for passenger
-  apt_key:
-    url: http://keyserver.ubuntu.com/pks/lookup?op=get&fingerprint=on&search=0xAC40B2F7
-    state: present
-  tags: ['nginx']
-
-- name: Apt via https
-  apt:
-    name: apt-transport-https
-    state: present
+- name: Ensure /etc/apt/keyrings directory exists
+  file:
+    path: /etc/apt/keyrings
+    state: directory
+    mode: "0755"
   tags: ['nginx', 'passenger', 'apt']
 
-- name: Apt add passenger to list
+- name: Download Passenger apt signing key
+  get_url:
+    url: https://oss-binaries.phusionpassenger.com/auto-software-signing-gpg-key.txt
+    dest: /etc/apt/keyrings/phusion-passenger.asc
+    mode: "0644"
+  tags: ['nginx', 'passenger', 'apt']
+
+- name: Add Passenger apt repository
   apt_repository:
-    repo: 'deb https://oss-binaries.phusionpassenger.com/apt/passenger {{ansible_distribution_release}} main'
+    repo: "deb [signed-by=/etc/apt/keyrings/phusion-passenger.asc] https://oss-binaries.phusionpassenger.com/apt/passenger {{ ansible_distribution_release }} main"
     state: present
+    filename: passenger
     update_cache: yes
   tags: ['nginx', 'passenger', 'apt']
 
-- name: Install passenger
+- name: Install passenger nginx module
   apt:
     pkg:
       - libnginx-mod-http-passenger
@@ -63,21 +66,26 @@
     pkg: git
   tags: ['apt']
 
-- name: Add postgresql apt signing key
-  apt_key:
+- name: Download PostgreSQL apt signing key
+  get_url:
     url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /etc/apt/keyrings/pgdg.asc
+    mode: "0644"
   tags: ['postgresql', 'apt']
 
-- name: Add postgresql apt repository
+- name: Add PostgreSQL apt repository
   apt_repository:
-    repo: deb http://apt.postgresql.org/pub/repos/apt focal-pgdg main
+    repo: "deb [signed-by=/etc/apt/keyrings/pgdg.asc] http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+    state: present
+    filename: pgdg
+    update_cache: yes
   tags: ['postgresql', 'apt']
 
-- name: Install postgresql 13
+- name: Install PostgreSQL {{ postgresql_version }}
   apt:
     pkg:
-      - postgresql-13
-      - postgresql-client-13
+      - "postgresql-{{ postgresql_version }}"
+      - "postgresql-client-{{ postgresql_version }}"
       - libpq-dev
     update_cache: yes
   tags: ['postgresql', 'apt']
@@ -85,38 +93,35 @@
 - name: Trust local database access
   template:
     src: pg_hba.conf
-    dest: /etc/postgresql/13/main/pg_hba.conf
+    dest: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
     owner: postgres
     group: postgres
-  tags: ['postgresql', 'apt']
+  tags: ['postgresql']
 
-# We want the restart to happen immediately so that postgresl will be available
-# for later tasks
+# Restart immediately so PostgreSQL is available for later tasks
 - name: Restart postgresql
   service:
     name: postgresql
     state: restarted
-  tags: ['postgresql', 'apt']
+  tags: ['postgresql']
 
 - name: Make sure the right version of postgresql starts at boot
   systemd:
     state: started
-    name: postgresql@13-main
-  tags: ['postgresql', 'apt']
+    name: "postgresql@{{ postgresql_version }}-main"
+  tags: ['postgresql']
 
-# Installing via bash so that rvm is used. Otherwise would install gems for default system ruby
+# Installing via bash -lc so that RVM is active
 - name: Install bundler gem
-  command: bash -lc "gem install bundler --version 2.3.26"
+  command: bash -lc "gem install bundler --version 2.5.16"
   args:
-    creates: "/usr/local/lib/rvm/gems/ruby-3.0.6/gems/bundler-2.3.26"
+    creates: "/usr/local/lib/rvm/gems/ruby-{{ ruby_version }}/gems/bundler-2.5.16"
   tags: ['ruby', 'rvm']
 
-- name: Install package dependencies that allow gem native extensions to be built
+- name: Install package dependencies for native gem extensions
   apt:
     pkg:
-      - libmysqlclient-dev
       - g++
-      # Required for encryption in eventmachine
       - libssl-dev
   tags: ['ruby', 'apt']
 
@@ -128,7 +133,6 @@
     group: deploy
   notify: nginx restart
   tags: ['app']
-  # TODO: Should also restart the log daemon
 
 - name: Directory to hold configs for ssl on tracking links
   file:
@@ -171,20 +175,23 @@
 - name: Create cuttlefish postgresql database
   postgresql_db:
     name: cuttlefish
+  become_user: postgres
   tags: ['postgresql']
 
-- name: Create cuttlefish posgresql role
+- name: Create cuttlefish postgresql role
   postgresql_user:
     db: cuttlefish
     name: cuttlefish
     password: "{{ db_password }}"
     encrypted: yes
+  become_user: postgres
   tags: ['postgresql']
 
 - name: Create postgresql role for root so it can do backups
   postgresql_user:
     name: root
     role_attr_flags: SUPERUSER
+  become_user: postgres
   tags: ['postgresql']
 
 - name: Copy over database configuration for application
@@ -194,14 +201,6 @@
     owner: deploy
     group: deploy
   notify: nginx restart
-  tags: ['app']
-
-- name: Allow deploy user to export foreman script
-  lineinfile:
-    dest: /etc/sudoers
-    state: present
-    line: 'deploy ALL=(ALL) NOPASSWD: /usr/local/lib/rvm/wrappers/default/bundle exec foreman export systemd /etc/systemd/system -a cuttlefish -u deploy -l /srv/www/shared/log -f Procfile.production'
-    validate: 'visudo -cf %s'
   tags: ['app']
 
 - name: Allow deploy user to reload systemd daemon after changing config
@@ -264,26 +263,23 @@
     pkg: certbot
     update_cache: yes
   tags: ['nginx']
+  when: certbot_create | default(true)
 
-# We need this for the next step (which needs to happen before certbot runs
-# the first time)
-- name: Create hook certbot renewal hook directory
+- name: Create certbot renewal hook directory
   file:
     path: /etc/letsencrypt/renewal-hooks/deploy
     state: directory
     mode: "0755"
   tags: ['cuttlefish']
+  when: certbot_create | default(true)
 
-# Note that we're doing this before the certificate is generated because we want
-# the new certificate copied across immediately. But the slight hassle is we
-# need to ensure that the directory exists before we can run this (which otherwise
-# would have been created by certbot)
 - name: Install script for copying certs for cuttlefish daemon
   template:
     src: copy-cuttlefish-daemon-certs.sh
     dest: /etc/letsencrypt/renewal-hooks/deploy/copy-cuttlefish-daemon-certs
     mode: 755
   tags: ['cuttlefish']
+  when: certbot_create | default(true)
 
 - name: Install certificate using certbot
   include_role:
@@ -295,16 +291,25 @@
     certbot_auto_renew_options: '--no-self-upgrade --pre-hook "service nginx stop" --post-hook "service nginx start"'
     certbot_create_if_missing: yes
     certbot_certs:
-      - email: contact@oaf.org.au
+      - email: "{{ certbot_email }}"
         domains:
-          - cuttlefish.oaf.org.au
-          - cuttlefish.io
+          - "{{ cuttlefish_domain }}"
   tags: ['cuttlefish']
+  when: certbot_create | default(true)
+
+- name: Install New Relic infrastructure agent
+  include_role:
+    name: newrelic.newrelic-infra
+  vars:
+    nrinfragent_config:
+      license_key: "{{ new_relic_license_key }}"
+  tags: ['newrelic']
+  when: new_relic_enabled | default(false)
 
 - name: Daily archiving and deny list removal tasks
   cron:
     name: daily old email archiving
-    job:  "cd /srv/www/current && /usr/local/lib/rvm/bin/rvm . do bundle exec rake cuttlefish:daily_tasks RAILS_ENV=production"
+    job: "cd /srv/www/current && /usr/local/lib/rvm/bin/rvm . do bundle exec rake cuttlefish:daily_tasks RAILS_ENV=production"
     user: deploy
     minute: "0"
     hour: "12"

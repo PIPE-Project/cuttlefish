@@ -37,3 +37,7 @@ postfix_log/messages
 
 # Use .ansible directory as a virtualenv if you want
 .ansible
+
+# Deployment-specific files — copy from *.example and fill in your values
+provisioning/hosts
+provisioning/group_vars/secrets.yml

@@ -1,0 +1,8 @@
+# Copy this file to "hosts" and fill in your server details.
+# "hosts" is in .gitignore so your server IP won't be committed.
+#
+# To provision: ./provision_production.sh
+# Or manually: ansible-playbook -i provisioning/hosts provisioning/playbook.yml
+
+[cuttlefish]
+your-server-ip-or-hostname ansible_user=root

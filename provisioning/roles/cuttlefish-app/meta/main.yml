@@ -1,148 +1,32 @@
 ---
 galaxy_info:
-  author: your name
-  description:
-  company: your company (optional)
-  # Some suggested licenses:
-  # - BSD (default)
-  # - MIT
-  # - GPLv2
-  # - GPLv3
-  # - Apache
-  # - CC-BY
-  license: license (GPLv2, CC-BY, etc)
-  min_ansible_version: 1.2
-  #
-  # Below are all platforms currently available. Just uncomment
-  # the ones that apply to your role. If you don't see your
-  # platform on this list, let us know and we'll get it added!
-  #
-  #platforms:
-  #- name: EL
-  #  versions:
-  #  - all
-  #  - 5
-  #  - 6
-  #  - 7
-  #- name: GenericUNIX
-  #  versions:
-  #  - all
-  #  - any
-  #- name: Fedora
-  #  versions:
-  #  - all
-  #  - 16
-  #  - 17
-  #  - 18
-  #  - 19
-  #  - 20
-  #- name: SmartOS
-  #  versions:
-  #  - all
-  #  - any
-  #- name: opensuse
-  #  versions:
-  #  - all
-  #  - 12.1
-  #  - 12.2
-  #  - 12.3
-  #  - 13.1
-  #  - 13.2
-  #- name: Amazon
-  #  versions:
-  #  - all
-  #  - 2013.03
-  #  - 2013.09
-  #- name: GenericBSD
-  #  versions:
-  #  - all
-  #  - any
-  #- name: FreeBSD
-  #  versions:
-  #  - all
-  #  - 8.0
-  #  - 8.1
-  #  - 8.2
-  #  - 8.3
-  #  - 8.4
-  #  - 9.0
-  #  - 9.1
-  #  - 9.1
-  #  - 9.2
-  #- name: Ubuntu
-  #  versions:
-  #  - all
-  #  - lucid
-  #  - maverick
-  #  - natty
-  #  - oneiric
-  #  - precise
-  #  - quantal
-  #  - raring
-  #  - saucy
-  #  - trusty
-  #- name: SLES
-  #  versions:
-  #  - all
-  #  - 10SP3
-  #  - 10SP4
-  #  - 11
-  #  - 11SP1
-  #  - 11SP2
-  #  - 11SP3
-  #- name: GenericLinux
-  #  versions:
-  #  - all
-  #  - any
-  #- name: Debian
-  #  versions:
-  #  - all
-  #  - etch
-  #  - lenny
-  #  - squeeze
-  #  - wheezy
-  #
-  # Below are all categories currently available. Just as with
-  # the platforms above, uncomment those that apply to your role.
-  #
-  #categories:
-  #- cloud
-  #- cloud:ec2
-  #- cloud:gce
-  #- cloud:rax
-  #- clustering
-  #- database
-  #- database:nosql
-  #- database:sql
-  #- development
-  #- monitoring
-  #- networking
-  #- packaging
-  #- system
-  #- web
+  author: openaustralia
+  description: Cuttlefish transactional email server
+  license: MIT
+  min_ansible_version: 2.15
+  platforms:
+    - name: Ubuntu
+      versions:
+        - noble   # 24.04
+        - jammy   # 22.04
+
 dependencies:
   - role: cuttlefish-postfix
-  - role: newrelic.newrelic-infra
-    nrinfragent_config:
-      license_key: "{{ new_relic_license_key }}"
   - role: rvm.ruby
-    # The last ruby listed will be set as the default ruby
-    rvm1_rubies: ['ruby-3.0.6']
+    # The last ruby listed will be set as the default
+    rvm1_rubies:
+      - "ruby-{{ ruby_version }}"
     rvm1_rvm_check_for_updates: false
     rvm1_install_path: '/usr/local/lib/rvm'
     rvm1_user: 'root'
-    # Because we're installing the expected bundler in a seperate step
-    rvm1_bundler_install: False
-    # Need this for installing ruby 3.0 on ubuntu 20.04. See https://github.com/rvm/rvm/issues/4975
-    # Hopefully we can get rid of this once we've upgrade to ubuntu 22.04.
-    rvm1_install_flags: "--disable-binary"
+    rvm1_bundler_install: false
   - role: DavidWittman.redis
     redis_bind: "127.0.0.1"
   - role: cuttlefish-backup
-    backup_aws_access_key: "{{ encrypted_backup_aws_access_key }}"
-    backup_secret_access_key: "{{ encrypted_backup_secret_access_key }}"
-    backup_passphrase: "{{ encrypted_backup_passphrase }}"
-    backup_dest: s3+http://oaf-backups/cuttlefish/
+    backup_aws_access_key: "{{ encrypted_backup_aws_access_key | default('') }}"
+    backup_secret_access_key: "{{ encrypted_backup_secret_access_key | default('') }}"
+    backup_passphrase: "{{ encrypted_backup_passphrase | default('') }}"
+    backup_dest: "s3+http://{{ s3_bucket | default('cuttlefish-backups') }}/cuttlefish/"
     backup_inclist:
       - "/var/lib/database-backup"
       - "/srv/www/shared/emails"
