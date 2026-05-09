@@ -2,13 +2,13 @@
 
 class AppForm
   include ActiveModel::Model
-  include Virtus.model
+  include ActiveModel::Attributes
 
-  attribute :id, Integer
-  attribute :name, String
-  attribute :click_tracking_enabled, Boolean, default: true
-  attribute :open_tracking_enabled, Boolean, default: true
-  attribute :custom_tracking_domain, String
-  attribute :from_domain, String
-  attribute :webhook_url, String
+  attribute :id, :integer
+  attribute :name, :string
+  attribute :click_tracking_enabled, :boolean, default: true
+  attribute :open_tracking_enabled, :boolean, default: true
+  attribute :custom_tracking_domain, :string
+  attribute :from_domain, :string
+  attribute :webhook_url, :string
 end
