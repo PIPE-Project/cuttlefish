@@ -2,6 +2,10 @@ require_relative "boot"
 
 require "rails/all"
 
+# sass must be loaded before Bundler.require so that bootstrap-sass 2.x can
+# find the Sass constant when flatui-rails loads it during gem initialisation.
+require "sass"
+
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
