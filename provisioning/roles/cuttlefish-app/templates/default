@@ -13,6 +13,7 @@ server {
   root /srv/www/current/public;
   passenger_enabled on;
   passenger_ruby /usr/local/lib/rvm/wrappers/default/ruby;
+  passenger_app_env production;
 
   location ^~ /assets/ {
     gzip_static on;
