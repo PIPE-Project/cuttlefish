@@ -58,6 +58,9 @@ mkdir -p tmp log
 ln -sf "\$APP_DIR/shared/.env" .env
 ln -sf "\$APP_DIR/shared/database.yml" config/database.yml
 
+echo "=== Writing REVISION file ==="
+git rev-parse HEAD > REVISION
+
 echo "=== Installing gems ==="
 "\$RVM" . do bundle install --without development test
 
