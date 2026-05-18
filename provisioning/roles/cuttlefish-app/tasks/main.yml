@@ -199,6 +199,16 @@
   become_user: postgres
   tags: ['postgresql']
 
+# PostgreSQL 15+ revoked CREATE on public schema from PUBLIC by default.
+# The cuttlefish user needs it explicitly to run migrations.
+- name: Grant cuttlefish user full access to public schema
+  postgresql_schema:
+    database: cuttlefish
+    name: public
+    owner: cuttlefish
+  become_user: postgres
+  tags: ['postgresql']
+
 - name: Copy over database configuration for application
   template:
     src: database.yml
