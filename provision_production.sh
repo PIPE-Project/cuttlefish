@@ -73,6 +73,11 @@ fi
 # Build extra arguments
 extra_args=''
 
+# Vault support: if .vault_pass exists, use it automatically
+if [ -f "$SCRIPT_DIR/.vault_pass" ]; then
+    extra_args="$extra_args --vault-password-file $SCRIPT_DIR/.vault_pass"
+fi
+
 case "$TAGS" in
 ?*)
     extra_args="$extra_args --tags=facts,$TAGS"

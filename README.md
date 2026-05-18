@@ -96,7 +96,18 @@ Edit `provisioning/hosts` and replace `your-server-ip-or-hostname` with your ser
 
 Edit `provisioning/group_vars/all/main.yml` and set `cuttlefish_domain` to your domain (e.g. `mail.example.com`). Other options in that file are documented inline.
 
-### Step 3 — Create your secrets file
+### Step 3 — Create and encrypt your secrets file
+
+**3a. Create a vault password file** — this is the master password that protects your secrets. Pick something strong and store it somewhere safe (a password manager is ideal).
+
+```bash
+echo 'your-strong-vault-password' > .vault_pass
+chmod 600 .vault_pass
+```
+
+`.vault_pass` is gitignored. `provision_production.sh` detects it automatically and passes it to Ansible.
+
+**3b. Create your secrets file from the example:**
 
 ```bash
 cp provisioning/group_vars/all/secrets.yml.example provisioning/group_vars/all/secrets.yml
@@ -109,7 +120,21 @@ rails secret
 # or: openssl rand -hex 64
 ```
 
-`secrets.yml` is gitignored and must never be committed.
+**3c. Encrypt the secrets file:**
+
+```bash
+ansible-vault encrypt provisioning/group_vars/all/secrets.yml
+```
+
+You will be prompted for the vault password. After this the file is encrypted and safe to inspect in version control if you ever need to (though it remains gitignored by default).
+
+To edit the secrets later:
+
+```bash
+ansible-vault edit provisioning/group_vars/all/secrets.yml
+```
+
+This decrypts to a temp file, opens your `$EDITOR`, then re-encrypts on save.
 
 ### Step 4 — Provision the server
 
@@ -155,6 +180,28 @@ Once the app is running, add these DNS records for your sending domain:
 * **SPF**: `v=spf1 ip4:YOUR_SERVER_IP -all`
 * **PTR (reverse DNS)**: set in your VPS control panel to match your domain
 * **DKIM**: each app in the UI has its own DKIM key — add the public key as a TXT record when prompted
+
+---
+
+## Working with the Ansible Vault
+
+All secrets are stored in `provisioning/group_vars/all/secrets.yml`, encrypted with Ansible Vault. The vault password lives in `.vault_pass` (gitignored).
+
+| Task | Command |
+|------|---------|
+| Edit secrets | `ansible-vault edit provisioning/group_vars/all/secrets.yml` |
+| View secrets (read-only) | `ansible-vault view provisioning/group_vars/all/secrets.yml` |
+| Decrypt to plaintext | `ansible-vault decrypt provisioning/group_vars/all/secrets.yml` |
+| Re-encrypt after decrypting | `ansible-vault encrypt provisioning/group_vars/all/secrets.yml` |
+| Change the vault password | `ansible-vault rekey provisioning/group_vars/all/secrets.yml` |
+
+All of these commands will prompt for the vault password unless `.vault_pass` is present, in which case you can pass it explicitly:
+
+```bash
+ansible-vault edit --vault-password-file .vault_pass provisioning/group_vars/all/secrets.yml
+```
+
+**If you lose `.vault_pass`:** you cannot recover the encrypted secrets. Keep a backup of the vault password in a password manager. If you lose it, you will need to reprovision with a fresh `secrets.yml`.
 
 ---
 
