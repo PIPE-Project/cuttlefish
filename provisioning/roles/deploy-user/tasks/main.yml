@@ -23,6 +23,14 @@
     - "{{ github_users }}"
   register: add_authorized_keys
 
+- name: Add extra authorized keys (raw key strings, e.g. for deploy tooling)
+  authorized_key:
+    user: "{{ item[0] }}"
+    key: "{{ item[1] }}"
+  with_nested:
+    - ['deploy', 'root']
+    - "{{ extra_authorized_keys | default([]) }}"
+
 - name: Only allow ssh access with keys
   lineinfile:
     dest: /etc/ssh/sshd_config

@@ -1,39 +1,171 @@
 # ![Cuttlefish](https://raw.github.com/mlandauer/cuttlefish/master/app/assets/images/cuttlefish_80x48.png) Cuttlefish
 
-[![Build Status](https://travis-ci.com/mlandauer/cuttlefish.svg?branch=master)](https://travis-ci.com/mlandauer/cuttlefish) [![Coverage Status](https://coveralls.io/repos/github/mlandauer/cuttlefish/badge.svg?branch=master)](https://coveralls.io/github/mlandauer/cuttlefish?branch=master) [![Maintainability](https://api.codeclimate.com/v1/badges/abe94fb0811e8e8c512a/maintainability)](https://codeclimate.com/github/mlandauer/cuttlefish/maintainability)
+Cuttlefish is a self-hosted transactional email server. Your app sends email to it via SMTP; it relays through Postfix, tracks opens/clicks/bounces, and provides a web UI and GraphQL API.
 
-* Project site: [cuttlefish.io](https://cuttlefish.io)
-* Github repo:  [github.com/mlandauer/cuttlefish](https://github.com/mlandauer/cuttlefish)
+This is a fork of [openaustralia/cuttlefish](https://github.com/openaustralia/cuttlefish), updated for modern infrastructure and made portable for anyone to self-host — not just OpenAustralia Foundation.
 
-Cuttlefish is a lovely, easy to set up transactional email server
+* Original project site: [cuttlefish.io](https://cuttlefish.io)
 
-Sending a few emails from your app is easy. Sending lots becomes painful. There are so many hidden gotchas. Do your
-emails get delivered? Are you being considered a spammer? What about all those bounced emails?
+---
 
-Let's make sending lots of emails fun again!
+## Features
 
-And without the hidden dangers of vendor lock in of commercial transactional email services.
+* Send email from your app over SMTP and get delivery tracking for free
+* Web UI to browse sent mail, view content, and monitor delivery status
+* Real-time open, click, bounce, and hard-block tracking
+* Automatic DKIM signing per application
+* Deny list management (hard bounces never retried)
+* Multiple apps, each with their own SMTP credentials
+* GraphQL API for everything the UI can do
+* Web callbacks on delivery success or failure
+* One-click IP reputation check
 
-* Send email from your application using smtp in the usual way and get all sorts of added benefits for no effort
-* A lovely web UI to browse what's happening
-* Monitor in real time which emails arrive at their destination and which bounce
-* Works with any web framework and language
-* Automatically not send emails to destinations that have hard bounced in the past
-* Track which emails are opened and which links are clicked
-* Statistics on emails sent, soft/hard bounced and held back
-* View the full email content for recently sent emails
-* Multiple applications can each have their own SMTP authentication
-* [GraphQL](https://graphql.org/) API where anything you can do in the admin UI can do with the API
-* Web callbacks on successful or failed deliveries of emails
-* Check your IP reputation with one click
-* Easy to install and get going quickly
-* Built in, super easy to set up, automatic DKIM signing
-* Postfix, which you know and trust, handles email delivery
-* Open source, so no vendor lock in.
+---
 
-Cuttlefish is in beta. It's been used in production
-by [OpenAustralia Foundation](http://www.openaustraliafoundation.org.au)'s projects for many years and sends over a
-million emails per month.
+## Tech stack
+
+| Component | Version |
+|-----------|---------|
+| Ruby | 3.3.5 |
+| Rails | 7.1 |
+| PostgreSQL | 16 |
+| Redis | 7 |
+| Sidekiq | 7 |
+| Postfix | latest |
+| Nginx + Passenger | latest |
+
+---
+
+## Development
+
+The only dependency for local development is Docker and Docker Compose.
+
+**1. Create the database:**
+
+```bash
+docker compose run web bundle exec rake db:create db:schema:load
+```
+
+**2. (Optional) Load seed data** — creates a site admin with email `joy@smart-unlimited.com` and password `password`:
+
+```bash
+docker compose run web bundle exec rake db:seed
+```
+
+**3. Start all services:**
+
+```bash
+docker compose up
+```
+
+**4. Open the app:**
+
+* Web UI: http://localhost:3000
+* Mailcatcher (catches all outbound mail in dev): http://localhost:1080
+
+Log in with `joy@smart-unlimited.com` / `password` if you seeded the database.
+
+**5. Run the tests:**
+
+```bash
+docker compose exec web rake
+```
+
+---
+
+## Production setup
+
+Production uses Ansible to provision a fresh Ubuntu 24.04 server, then `deploy.sh` to deploy the app.
+
+### Prerequisites
+
+* A fresh Ubuntu 24.04 VPS with root SSH access
+* Python 3 on your local machine
+* A domain name pointed at the server IP
+* The server's IP must have a matching reverse DNS (PTR) record for good mail deliverability
+
+### Step 1 — Configure your inventory
+
+```bash
+cp provisioning/hosts.example provisioning/hosts
+```
+
+Edit `provisioning/hosts` and replace `your-server-ip-or-hostname` with your server's IP or hostname.
+
+### Step 2 — Configure your domain and options
+
+Edit `provisioning/group_vars/all` and set `cuttlefish_domain` to your domain (e.g. `mail.example.com`). Other options in that file are documented inline.
+
+### Step 3 — Create your secrets file
+
+```bash
+cp provisioning/group_vars/secrets.yml.example provisioning/group_vars/secrets.yml
+```
+
+Edit `secrets.yml` and fill in all required values. Generate Rails secrets with:
+
+```bash
+rails secret
+# or: openssl rand -hex 64
+```
+
+`secrets.yml` is gitignored and must never be committed.
+
+### Step 4 — Provision the server
+
+```bash
+./provision_production.sh --ask-pass
+```
+
+Use `--ask-pass` the first time (root password login). On subsequent runs it will use the SSH key added during provisioning.
+
+Optional environment variables:
+
+* `TAGS` — comma-separated tags to run only specific tasks
+* `SKIP_TAGS` — comma-separated tags to skip
+* `START_AT_TASK` — task name to start from
+
+### Step 5 — Deploy the application
+
+```bash
+./deploy.sh your-server-ip-or-hostname
+```
+
+This SSHes as the `deploy` user, pulls the latest code, installs gems, runs migrations, precompiles assets, and restarts Passenger.
+
+On first run it will clone the repository. Subsequent deploys are fast.
+
+### Step 6 — DNS records
+
+Once the app is running, add these DNS records for your sending domain:
+
+* **SPF**: `v=spf1 ip4:YOUR_SERVER_IP -all`
+* **PTR (reverse DNS)**: set in your VPS control panel to match your domain
+* **DKIM**: each app in the UI has its own DKIM key — add the public key as a TXT record when prompted
+
+---
+
+## Clobbering provisioning artefacts
+
+To reset the Ansible virtualenv and downloaded roles:
+
+```bash
+./provision_production.sh clobber
+```
+
+Run this after changing `provisioning/requirements.txt`, `provisioning/requirements.yml`, or your Python version.
+
+---
+
+## Deploying updates
+
+```bash
+./deploy.sh your-server-ip-or-hostname
+```
+
+There is no migration auto-detection — migrations run on every deploy (idempotent). If you need to roll back, SSH to the server and use `git checkout` in `/srv/www/current`.
+
+---
 
 ## Screenshots
 
@@ -41,218 +173,49 @@ million emails per month.
 ![Dashboard](https://raw.github.com/mlandauer/cuttlefish/master/app/assets/images/screenshots/2.png)
 ![Email](https://raw.github.com/mlandauer/cuttlefish/master/app/assets/images/screenshots/3.png)
 
-## Things on the cards
+---
 
-* "out of office" and bounce reply filtering
-* Incoming email
+## Changes from upstream
 
-## Dependencies
+This fork makes the following changes relative to [openaustralia/cuttlefish](https://github.com/openaustralia/cuttlefish):
 
-Ruby, PostgresQL, Redis (2.4 or greater), Postfix
+### Stack modernisation
 
-Also you need the following libraries:
-imagemagick, libmagickwand-dev, libpq-dev
+| Component | Upstream | This fork |
+|-----------|----------|-----------|
+| Ruby | 3.0.6 | 3.3.5 |
+| Rails | 6.1 | 7.1 |
+| PostgreSQL | 13 | 16 |
+| Redis | 4.0+ | 7 |
+| Sidekiq | 5.1 | 7 |
+| GraphQL gem | 1.12 | 1.13.x |
 
-For development, however, the only dependencies are Docker and Docker compose.
+### Ansible provisioning rewrite
 
-## Development
+The provisioning playbook was substantially rewritten:
 
-Setting up a local development environment with all the correct dependencies and
-moving parts is now very straightforward by using [Docker](https://www.docker.com/).
+* **Ubuntu 24.04 (noble)** — updated from Ubuntu 16.04/20.04. PostgreSQL APT source updated to noble-pgdg; deprecated `apt_key` + keyserver replaced with `get_url` + `/etc/apt/keyrings/`.
+* **Portable configuration** — all hardcoded OpenAustralia Foundation values (domain, certbot email, GitHub SSH users) have been replaced with variables in `group_vars/all` and `group_vars/secrets.yml`.
+* **Secrets file** — secrets are now in `group_vars/secrets.yml` (gitignored). A `secrets.yml.example` template is provided so new deployments know exactly what to fill in.
+* **`hosts` is gitignored** — `hosts.example` is provided instead, so server IPs and hostnames are never accidentally committed.
+* **New Relic is optional** — controlled by `new_relic_enabled: false` in `group_vars/all`. Previously it was an always-on dependency.
+* **Modern nginx TLS** — dropped TLSv1 and TLSv1.1, added TLSv1.3, updated cipher suite.
+* **Ansible version check relaxed** — from `== 2.15` to `>= 2.15`.
 
-To start with:
+### `deploy.sh` replaces Capistrano 2
 
-```
-docker compose run web bundle exec rake db:create db:schema:load
-```
+The original deployment method used Capistrano 2, which is unmaintained and requires a Ruby/Bundler installation on the control machine. This fork replaces it with `deploy.sh` — a plain shell script that SSHes to the server and runs standard git/bundle/rake commands. No Capistrano, no Gemfile required on the deploying machine.
 
-Now add some example seed data. This will also create a site admin with email "joy@smart-unlimited.com" and password "
-password". You'll need these details later to sign in. Skip this step if you don't want seed data.
+---
 
-```
-docker compose run web bundle exec rake db:seed
-```
+## Known limitations
 
-Then
+* **Capistrano 2 config still present** — `config/deploy.rb` and `Capfile` remain for reference but are not used. `deploy.sh` is the supported deployment method.
+* **Postfix log parsing is fragile** — `CuttlefishLogDaemon` uses regex on syslog output. A Postfix or OS upgrade that changes log format can silently break bounce detection.
+* **Single-server only** — email content is cached on the local filesystem. Horizontal scaling would require refactoring.
+* **DKIM keys never rotate** — keys live in the database indefinitely. Manual rotation requires updating the DB record and DNS.
 
-```
-docker compose up
-```
-
-Those steps will take a little while as they download images and build
-the docker containers.
-
-When its stops spitting output to the console point your web browser at
-
-http://localhost:3000
-
-If you've used the `db:seed` task to populate the development database you can now log in using the email "
-joy@smart-unlimited.com" with the password "password".
-
-For development all mail sent out by Cuttlefish will actually go to mailcatcher.
-To see the mailcatcher mail:
-
-http://localhost:1080
-
-To run the tests (do that from another window):
-
-```
-docker compose exec web rake
-```
-
-## To install:
-
-We use [Vagrant](https://www.vagrantup.com/) and [Ansible](http://docs.ansible.com/) to automatically set up a fresh
-server with everything you need to run Cuttlefish. It's a fairly complicated affair as Cuttlefish does have quite a few
-moving parts but all of this is with the purpose of making it easier for the developer sending mail.
-
-These instructions are specifically for installing the server at https://cuttlefish.oaf.org.au.
-
-Previously, the control node setup required a relatively old version of Ansible (2.5.0) using Python 2.7.
-This is being updated.
-
-### To install to a local test virtual machine
-
-1. Create a file `~/.cuttlefish_ansible_vault_pass.txt` which contains the password for encrypting the secret values
-   used in the deploy. The encrypted variables are at `provisioning/roles/cuttlefish-app/vars/main.yml`.
-
-2. Download base box and build virtual machine with everything needed for Cuttlefish. This will take a while (at least
-   30 mins or so)
-
-```
-vagrant up
-```
-
-3. Deploy the application. As this is the first deploy it will take quite a while (5 mins or so). Further deploys will
-   be much quicker. We're using the `--set-before local_deploy=true` flag to deploy to your local test virtual machine
-   instead of production.
-
-```
-bundle exec cap --set-before local_deploy=true deploy:setup deploy:cold foreman:export foreman:start
-```
-
-4. Add to your local `/etc/hosts` file
-
-```
-127.0.0.1       cuttlefish.oaf.org.au
-```
-
-5. Point your web browser at https://cuttlefish.oaf.org.au:8443/
-
-### To install on [Linode](https://www.linode.com/)
-
-1. Login at the [Linode Manager](https://manager.linode.com/)
-
-2. [Add a new Linode](https://manager.linode.com/linodes/add)
-
-3. Select "Linode 8GB" at location "Fremont, CA"
-
-4. Select your new Linode in the dashboard
-
-5. Click "Deploy a Linux Distribution". Choose "Ubuntu 16.04 LTS" and choose a root password. Leave everything as
-   default.
-
-6. Click "Boot" and wait for it to start up
-
-8. Update `provisioning/hosts` with the name of your server (e.g. li123-45.members.linode.com)
-
-9. Create a file `~/.cuttlefish_ansible_vault_pass.txt` which contains the password for encrypting the secret values
-   used in the deploy. The encrypted variables are at `provisioning/roles/cuttlefish-app/vars/main.yml`.
-
-10. To provision the server for the first time you will need to supply the root password you chose in step 5. On
-    subsequent deploys you won't need this. To supply this password run
-
-    ./provision_production.sh --ask-pass
-
-    # Yopu can also add `--check` to do a dry run and `--diff` as well to see the changes.
-
-    [VAR=value] ./provision_production.sh [--check [--diff]]
-
-ENV Variables:
-
-* `TAGS` - comma separated tags to restrict playbook to those tags
-* `SKIP_TAGS` - comma separated tags to skip
-* `START_AT_TASK` - task name to start from
-
-11. Update the server name in `config/deploy.rb`
-
-12. Deploy the application. As this is the first deploy it will take quite a while (5 mins or so). Further deploys will
-    be much quicker
-
-```
-cap deploy:setup
-cap deploy:cold
-cap foreman:export
-cap foreman:restart
-```
-
-13. At this stage you might want to snapshot the disk
-
-14. Make sure that DNS for cuttlefish.oaf.org.au points to the server ip address
-
-14. Point your browser at https://cuttlefish.org.au
-
-At this point you should have a basic working setup. You should be able to send test mail and see it getting delivered.
-
-Some further things to ensure things work smoothly
-
-1. Add DNS TXT record for cuttlefish.oaf.org.au with "v=spf1 ip4:your.server.ip4.address ip6:your.server.ip6.address
-   -all"
-
-2. Set up incoming email for cuttlefish.oaf.org.au (In OpenAustralia Foundation's case using Google Apps for domain).
-   Add addresses contact@cuttlefish.oaf.org.au, bounces@cuttlefish.oaf.org.au and sender@cuttlefish.oaf.org.au
-
-2. Ensure that the devise email address is set to contact@cuttlefish.oaf.org.au
-
-3. Set up reverse DNS. In the Linode Manager under "Remote Access" click "Reverse DNS" then for the hostname put in "
-   cuttlefish.oaf.org.au" and follow the instructions. This step is necessary in order to be able to sign up to
-   receive [Feedback loop emails](https://en.wikipedia.org/wiki/Feedback_loop_%28email%29).
-
-### Clobbering provisioning artefacts
-
-To clobber the venv dir (`.ansible`), and remove the roles that are dynamically downloaded and listed in `.gitignore`,
-run
-
-    ./provision_production.sh clobber
-
-You should run this if you change:
-
-* `provisioning/requirements.txt` - python3 packages
-* `provisioning/requirements.yml` - ansible roles downloaded rather than committed to git
-* The version of python3 installed on your system
-
-## Deploying to production
-
-One gotcha is that we're still on Capistrano 2 which doesn't apply database migrations
-by default on deploys.
-
-For normal deploys
-
-```
-cap deploy
-```
-
-To rollback a failed deploy
-
-```
-cap deploy:rollback
-```
-
-To deploy and run the migrations
-
-```
-cap deploy:migrations
-```
-
-## Screenshots
-
-Done some development work which updates the look of the main pages? To update the screenshots
-
-```
-bundle exec rspec spec/features/screenshot_feature.rb
-```
-
-Then commit the results
+---
 
 ## How to contribute
 

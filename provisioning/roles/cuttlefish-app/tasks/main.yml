@@ -23,16 +23,19 @@
     mode: "0755"
   tags: ['nginx', 'passenger', 'apt']
 
-- name: Download Passenger apt signing key
-  get_url:
-    url: https://oss-binaries.phusionpassenger.com/auto-software-signing-gpg-key.txt
-    dest: /etc/apt/keyrings/phusion-passenger.asc
-    mode: "0644"
+- name: Fetch Phusion Passenger signing key from keyserver
+  # Key ID D870AB033FB45BD1 is Phusion's current SHA256 signing key (rotated from 561F9B9CAC40B2F7).
+  # The old auto-software-signing-gpg-key.txt URL only has the old key, so we fetch from keyserver.
+  shell: |
+    gpg --keyserver keyserver.ubuntu.com --recv-keys D870AB033FB45BD1 && \
+    gpg --export D870AB033FB45BD1 > /etc/apt/keyrings/phusion-passenger.gpg
+  args:
+    creates: /etc/apt/keyrings/phusion-passenger.gpg
   tags: ['nginx', 'passenger', 'apt']
 
 - name: Add Passenger apt repository
   apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/phusion-passenger.asc] https://oss-binaries.phusionpassenger.com/apt/passenger {{ ansible_distribution_release }} main"
+    repo: "deb [signed-by=/etc/apt/keyrings/phusion-passenger.gpg] https://oss-binaries.phusionpassenger.com/apt/passenger {{ ansible_distribution_release }} main"
     state: present
     filename: passenger
     update_cache: yes
@@ -169,7 +172,9 @@
 
 - name: Install python module requirement for ansible creating postgresql db
   apt:
-    pkg: python3-psycopg2
+    pkg:
+      - python3-psycopg2
+      - acl        # required for Ansible become_user to work on Linux
   tags: ['postgresql', 'apt']
 
 - name: Create cuttlefish postgresql database
@@ -256,6 +261,17 @@
     name: deploy
     groups: adm
     append: yes
+  tags: ['app']
+
+- name: Open required ports in UFW
+  ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "80"    # HTTP — needed for certbot challenge and HTTP→HTTPS redirect
+    - "443"   # HTTPS — web UI
+    - "2525"  # Cuttlefish SMTP — apps send mail here
   tags: ['app']
 
 - name: Install certbot

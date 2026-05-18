@@ -3,7 +3,7 @@
 # Copy secrets.yml.example to secrets.yml and fill in your values.
 
 # The domain name for your Cuttlefish installation (used for nginx, SSL, and .env)
-cuttlefish_domain: "your.domain.example.com"
+cuttlefish_domain: "mail.pipeproject.info"
 
 # PostgreSQL version to install
 postgresql_version: 16
