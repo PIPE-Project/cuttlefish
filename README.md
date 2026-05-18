@@ -94,12 +94,12 @@ Edit `provisioning/hosts` and replace `your-server-ip-or-hostname` with your ser
 
 ### Step 2 — Configure your domain and options
 
-Edit `provisioning/group_vars/all` and set `cuttlefish_domain` to your domain (e.g. `mail.example.com`). Other options in that file are documented inline.
+Edit `provisioning/group_vars/all/main.yml` and set `cuttlefish_domain` to your domain (e.g. `mail.example.com`). Other options in that file are documented inline.
 
 ### Step 3 — Create your secrets file
 
 ```bash
-cp provisioning/group_vars/secrets.yml.example provisioning/group_vars/secrets.yml
+cp provisioning/group_vars/all/secrets.yml.example provisioning/group_vars/all/secrets.yml
 ```
 
 Edit `secrets.yml` and fill in all required values. Generate Rails secrets with:
@@ -119,6 +119,9 @@ rails secret
 
 Use `--ask-pass` the first time (root password login). On subsequent runs it will use the SSH key added during provisioning.
 
+> **Windows users:** Ansible doesn't run natively on Windows. Use WSL, or provision from the server itself:
+> SSH in as root, install Ansible (`apt install ansible`), copy the `provisioning/` directory to the server, and run `ansible-playbook -i hosts playbook.yml` from there with `ansible_connection=local` in your `hosts` file.
+
 Optional environment variables:
 
 * `TAGS` — comma-separated tags to run only specific tasks
@@ -131,11 +134,21 @@ Optional environment variables:
 ./deploy.sh your-server-ip-or-hostname
 ```
 
+Pass the path to your SSH private key as a second argument if it isn't in your agent:
+
+```bash
+./deploy.sh your-server-ip-or-hostname ~/.ssh/your_key
+```
+
 This SSHes as the `deploy` user, pulls the latest code, installs gems, runs migrations, precompiles assets, and restarts Passenger.
 
 On first run it will clone the repository. Subsequent deploys are fast.
 
-### Step 6 — DNS records
+### Step 6 — Create your first admin account
+
+Once the app is running, visit `https://your-domain/admins/sign_up` to create the superadmin account. This is only available before any admin exists — subsequent sign-ups require an invitation from an existing admin.
+
+### Step 7 — DNS records
 
 Once the app is running, add these DNS records for your sending domain:
 
@@ -195,16 +208,31 @@ This fork makes the following changes relative to [openaustralia/cuttlefish](htt
 The provisioning playbook was substantially rewritten:
 
 * **Ubuntu 24.04 (noble)** — updated from Ubuntu 16.04/20.04. PostgreSQL APT source updated to noble-pgdg; deprecated `apt_key` + keyserver replaced with `get_url` + `/etc/apt/keyrings/`.
-* **Portable configuration** — all hardcoded OpenAustralia Foundation values (domain, certbot email, GitHub SSH users) have been replaced with variables in `group_vars/all` and `group_vars/secrets.yml`.
-* **Secrets file** — secrets are now in `group_vars/secrets.yml` (gitignored). A `secrets.yml.example` template is provided so new deployments know exactly what to fill in.
+* **Portable configuration** — all hardcoded OpenAustralia Foundation values (domain, certbot email, GitHub SSH users) have been replaced with variables in `group_vars/all/main.yml` and `group_vars/all/secrets.yml`.
+* **Secrets file** — secrets are now in `group_vars/all/secrets.yml` (gitignored). A `secrets.yml.example` template is provided so new deployments know exactly what to fill in.
 * **`hosts` is gitignored** — `hosts.example` is provided instead, so server IPs and hostnames are never accidentally committed.
-* **New Relic is optional** — controlled by `new_relic_enabled: false` in `group_vars/all`. Previously it was an always-on dependency.
+* **New Relic is optional** — controlled by `new_relic_enabled: false` in `group_vars/all/main.yml`. Previously it was an always-on dependency.
 * **Modern nginx TLS** — dropped TLSv1 and TLSv1.1, added TLSv1.3, updated cipher suite.
 * **Ansible version check relaxed** — from `== 2.15` to `>= 2.15`.
+* **Phusion Passenger APT key** — updated to current key `D870AB033FB45BD1` fetched from `keyserver.ubuntu.com` (the old download URL only has the expired key).
+* **`passenger_app_env production`** in nginx site config — without this Passenger defaults to development and fails to start because development-only gems aren't installed.
+* **PostgreSQL 15+ schema permissions** — explicit `GRANT ALL ON SCHEMA public TO cuttlefish` added; PostgreSQL 15 revoked the default CREATE privilege and Rails migrations fail without it.
+* **UFW firewall rules** — ports 80 (HTTP/certbot), 443 (HTTPS), and 2525 (Cuttlefish SMTP) opened automatically during provisioning.
+* **`acl` package** — added to apt dependencies so Ansible's `become_user: postgres` works correctly on Ubuntu 24.04.
 
 ### `deploy.sh` replaces Capistrano 2
 
 The original deployment method used Capistrano 2, which is unmaintained and requires a Ruby/Bundler installation on the control machine. This fork replaces it with `deploy.sh` — a plain shell script that SSHes to the server and runs standard git/bundle/rake commands. No Capistrano, no Gemfile required on the deploying machine.
+
+### Rails / Ruby compatibility fixes
+
+Several issues emerged when upgrading to Ruby 3.3.5 and Rails 7.1 that are fixed in this fork:
+
+* **Sprockets 4 manifest** — `app/assets/config/manifest.js` added; Sprockets 4 requires an explicit manifest or it refuses to serve assets.
+* **`require "sass"` ordering** — `sass` must be loaded before `Bundler.require` in `config/application.rb` so that `bootstrap-sass 2.x` can find the Sass constant during gem initialisation.
+* **Migration class names** — two migration files had class names that didn't match Rails 7's acronym inflections (`IP` and `SSL` are declared as acronyms in `config/initializers/inflections.rb`). The class names in those migration files were updated to match.
+* **graphql-guard compatibility patch** — `graphql-guard 2.0.0` calls `.graphql_definition` on all schema members during query validation, including `GraphQL::Schema::TypeMembership` objects, which don't have that method in graphql-ruby 1.13. A small initializer (`config/initializers/graphql_guard_patch.rb`) patches `TypeMembership` to return an empty metadata stub, preventing a `NoMethodError` crash on startup.
+* **Landing page illustrations** — the landing page view references three image assets (`illustrations/mail.png`, `map.png`, `gift.png`) that were never committed to the upstream repository. Placeholder images are included so the landing page renders without error.
 
 ---
 
