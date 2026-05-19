@@ -1,6 +1,13 @@
-# Formtastic 2.x calls `=~` on column type values which can be `false` in Ruby 3.x.
-# Ruby 3 removed `=~` from FalseClass — restore it as a no-op to match Ruby 2 behaviour.
+# Formtastic 2.x uses `!name =~ /regex/` which, due to operator precedence, evaluates
+# as `(!name) =~ /regex/`. If `name` is truthy, `!name` is false; if nil/false, `!name`
+# is true. Ruby 3 removed `=~` from both FalseClass and TrueClass — restore as no-op.
 class FalseClass
+  def =~(_other)
+    nil
+  end
+end
+
+class TrueClass
   def =~(_other)
     nil
   end
