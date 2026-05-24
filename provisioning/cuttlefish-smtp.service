@@ -1,0 +1,20 @@
+[Unit]
+Description=Cuttlefish SMTP receiver
+After=network.target postgresql.service redis-server.service nginx.service
+Requires=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/srv/www/current
+Environment=RAILS_ENV=production
+Environment=CUTTLEFISH_DOMAIN_CERT_CHAIN_FILE=/etc/cuttlefish-certs/fullchain.pem
+Environment=CUTTLEFISH_DOMAIN_PRIVATE_KEY_FILE=/etc/cuttlefish-certs/privkey.pem
+ExecStart=/usr/local/lib/rvm/bin/rvm . do bundle exec rake cuttlefish:smtp
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/srv/www/current/log/smtp.log
+StandardError=append:/srv/www/current/log/smtp.log
+
+[Install]
+WantedBy=multi-user.target
