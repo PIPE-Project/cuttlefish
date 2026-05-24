@@ -20,8 +20,6 @@ dependencies:
     rvm1_install_path: '/usr/local/lib/rvm'
     rvm1_user: 'root'
     rvm1_bundler_install: false
-  - role: DavidWittman.redis
-    redis_bind: "127.0.0.1"
   - role: cuttlefish-backup
     backup_aws_access_key: "{{ encrypted_backup_aws_access_key | default('') }}"
     backup_secret_access_key: "{{ encrypted_backup_secret_access_key | default('') }}"

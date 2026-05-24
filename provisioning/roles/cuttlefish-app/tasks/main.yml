@@ -284,6 +284,22 @@
     - "2525"  # Cuttlefish SMTP — apps send mail here
   tags: ['app']
 
+# Redis 7 from Ubuntu repos — replaces the old DavidWittman.redis Galaxy role
+# which installed Redis 2.8, incompatible with Sidekiq 7's HELLO command.
+- name: Install Redis 7 from Ubuntu repos
+  apt:
+    pkg: redis-server
+    state: present
+    update_cache: yes
+  tags: ['redis', 'apt']
+
+- name: Enable and start Redis
+  systemd:
+    name: redis-server
+    enabled: yes
+    state: started
+  tags: ['redis']
+
 - name: Install certbot
   apt:
     pkg: certbot
@@ -299,11 +315,22 @@
   tags: ['cuttlefish']
   when: certbot_create | default(true)
 
-- name: Install script for copying certs for cuttlefish daemon
-  template:
-    src: copy-cuttlefish-daemon-certs.sh
-    dest: /etc/letsencrypt/renewal-hooks/deploy/copy-cuttlefish-daemon-certs
-    mode: 755
+- name: Create /etc/cuttlefish-certs directory for SMTP TLS certs
+  file:
+    path: /etc/cuttlefish-certs
+    state: directory
+    owner: deploy
+    group: deploy
+    mode: "0750"
+  tags: ['cuttlefish']
+
+- name: Install certbot renewal hook to copy certs for Cuttlefish SMTP daemon
+  copy:
+    src: "{{ playbook_dir }}/refresh-cuttlefish-certs.sh"
+    dest: /etc/letsencrypt/renewal-hooks/deploy/refresh-cuttlefish-certs.sh
+    owner: root
+    group: root
+    mode: "0755"
   tags: ['cuttlefish']
   when: certbot_create | default(true)
 
@@ -331,6 +358,56 @@
       license_key: "{{ new_relic_license_key }}"
   tags: ['newrelic']
   when: new_relic_enabled | default(false)
+
+- name: Install Cuttlefish SMTP receiver systemd service
+  copy:
+    src: "{{ playbook_dir }}/cuttlefish-smtp.service"
+    dest: /etc/systemd/system/cuttlefish-smtp.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: systemd daemon-reload
+  tags: ['cuttlefish']
+
+- name: Enable and start Cuttlefish SMTP receiver
+  systemd:
+    name: cuttlefish-smtp
+    enabled: yes
+    state: started
+  tags: ['cuttlefish']
+
+- name: Install Sidekiq background worker systemd service
+  copy:
+    src: "{{ playbook_dir }}/sidekiq.service"
+    dest: /etc/systemd/system/sidekiq.service
+    owner: root
+    group: root
+    mode: "0644"
+  notify: systemd daemon-reload
+  tags: ['cuttlefish']
+
+- name: Enable and start Sidekiq background worker
+  systemd:
+    name: sidekiq
+    enabled: yes
+    state: started
+  tags: ['cuttlefish']
+
+- name: Allow deploy user to restart cuttlefish-smtp service
+  lineinfile:
+    dest: /etc/sudoers
+    state: present
+    line: 'deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart cuttlefish-smtp'
+    validate: 'visudo -cf %s'
+  tags: ['app']
+
+- name: Allow deploy user to restart sidekiq service
+  lineinfile:
+    dest: /etc/sudoers
+    state: present
+    line: 'deploy ALL=(ALL) NOPASSWD: /bin/systemctl restart sidekiq'
+    validate: 'visudo -cf %s'
+  tags: ['app']
 
 - name: Daily archiving and deny list removal tasks
   cron:
