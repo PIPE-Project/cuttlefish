@@ -26,3 +26,7 @@ AWS_SECRET_ACCESS_KEY="{{ aws_secret_access_key }}"
 CUTTLEFISH_DOMAIN_CERT_CHAIN_FILE=/srv/www/shared/fullchain.pem
 CUTTLEFISH_DOMAIN_PRIVATE_KEY_FILE=/srv/www/shared/privkey.pem
 JWT_SECRET={{ jwt_secret }}
+# Bounce and sender addresses must be on the cuttlefish domain so SPF passes
+CUTTLEFISH_BOUNCE_EMAIL=bounces@{{ cuttlefish_domain }}
+CUTTLEFISH_SENDER_EMAIL=sender@{{ cuttlefish_domain }}
+DEVISE_EMAILS_FROM=contact@{{ cuttlefish_domain }}
