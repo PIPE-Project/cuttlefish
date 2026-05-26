@@ -8,6 +8,7 @@ gem "dotenv-rails"
 gem "rails", "~> 7.2"
 
 gem "pg"
+gem "csv"
 
 # Gems used only for assets and not required
 # in production environments by default.
