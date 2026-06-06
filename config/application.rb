@@ -2,6 +2,10 @@ require_relative "boot"
 
 require "rails/all"
 
+# sass must be loaded before Bundler.require so that bootstrap-sass 2.x can
+# find the Sass constant when flatui-rails loads it during gem initialisation.
+require "sass"
+
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
 Bundler.require(*Rails.groups)
@@ -9,7 +13,7 @@ Bundler.require(*Rails.groups)
 module Cuttlefish
   class Application < Rails::Application
     # Initialize configuration defaults for originally generated Rails version.
-    config.load_defaults 6.1
+    config.load_defaults 7.1
 
     # Configuration for the application, engines, and railties goes here.
     #

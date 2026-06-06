@@ -2,12 +2,12 @@
 
 class AdminForm
   include ActiveModel::Model
-  include Virtus.model
+  include ActiveModel::Attributes
 
-  attribute :email, String
-  attribute :password, String
-  attribute :name, String
-  attribute :invitation_token, String
-  attribute :reset_password_token, String
-  attribute :current_password, String
+  attribute :email, :string
+  attribute :password, :string
+  attribute :name, :string
+  attribute :invitation_token, :string
+  attribute :reset_password_token, :string
+  attribute :current_password, :string
 end

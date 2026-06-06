@@ -1,0 +1,18 @@
+[Unit]
+Description=Cuttlefish Sidekiq background worker
+After=network.target postgresql.service redis-server.service
+Requires=postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=deploy
+WorkingDirectory=/srv/www/current
+Environment=RAILS_ENV=production
+ExecStart=/usr/local/lib/rvm/bin/rvm . do bundle exec sidekiq -e production
+Restart=on-failure
+RestartSec=5
+StandardOutput=append:/srv/www/current/log/sidekiq.log
+StandardError=append:/srv/www/current/log/sidekiq.log
+
+[Install]
+WantedBy=multi-user.target

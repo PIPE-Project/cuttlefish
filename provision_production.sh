@@ -31,17 +31,35 @@ clobber)
   exit
   ;;
 esac
+# Find python — prefer python3, fall back to python, then try $LOCALAPPDATA (Windows Git Bash)
+PYTHON=$(command -v python3 2>/dev/null)
+if [ -z "$PYTHON" ] || ! "$PYTHON" --version &>/dev/null 2>&1; then
+    PYTHON=$(command -v python 2>/dev/null)
+fi
+if [ -z "$PYTHON" ] || ! "$PYTHON" --version &>/dev/null 2>&1; then
+    if [ -n "$LOCALAPPDATA" ]; then
+        WIN_PYTHON=$(cygpath -u "$LOCALAPPDATA" 2>/dev/null || echo "$LOCALAPPDATA" | sed 's|\\|/|g; s|^\([A-Za-z]\):|/\L\1|')
+        PYTHON="$WIN_PYTHON/Programs/Python/Python312/python"
+    fi
+fi
+if [ -z "$PYTHON" ] || ! "$PYTHON" --version &>/dev/null 2>&1; then
+    echo "ERROR: No working python found. On Windows, run from WSL or use the server-side approach." >&2
+    exit 1
+fi
+
 # Create and activate virtual environment if it doesn't exist
 if [ ! -d "$VENV_DIR" ]; then
     echo "Creating Python virtual environment in .ansible/"
-    python3 -m venv "$VENV_DIR"
+    "$PYTHON" -m venv "$VENV_DIR"
 fi
 
 # Activate virtual environment
-source "$VENV_DIR/bin/activate"
+source "$VENV_DIR/Scripts/activate" 2>/dev/null || source "$VENV_DIR/bin/activate"
 
 # Install/upgrade ansible if needed
-if ! pip show ansible &>/dev/null || [ "$VENV_DIR/bin/ansible-playbook" -ot "$PROVISIONING_DIR/requirements.txt" ]; then
+ANSIBLE_BIN="$VENV_DIR/Scripts/ansible-playbook"
+[ -f "$ANSIBLE_BIN" ] || ANSIBLE_BIN="$VENV_DIR/bin/ansible-playbook"
+if ! pip show ansible &>/dev/null || [ "$ANSIBLE_BIN" -ot "$PROVISIONING_DIR/requirements.txt" ]; then
     echo "Installing Ansible from requirements.txt"
     pip install -r "$PROVISIONING_DIR/requirements.txt"
 fi
@@ -54,6 +72,11 @@ fi
 
 # Build extra arguments
 extra_args=''
+
+# Vault support: if .vault_pass exists, use it automatically
+if [ -f "$SCRIPT_DIR/.vault_pass" ]; then
+    extra_args="$extra_args --vault-password-file $SCRIPT_DIR/.vault_pass"
+fi
 
 case "$TAGS" in
 ?*)

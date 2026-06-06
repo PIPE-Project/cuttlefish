@@ -5,28 +5,20 @@ source "https://rubygems.org"
 gem "dotenv-rails"
 
 # Bundle edge Rails instead: gem 'rails', github: 'rails/rails'
-gem "rails", "~> 6.1.0"
+gem "rails", "~> 7.2"
 
 gem "pg"
+gem "csv"
 
 # Gems used only for assets and not required
 # in production environments by default.
 group :assets do
-  # Locking sass-rails for the time being to avoid having to upgrade sprockets from 3->4
-  gem "sass-rails", "~> 5.0"
+  gem "sassc-rails"
+  gem "sass"
   # Don't upgrade to Bootstrap 3. It's already responsive, for example, so
   # there's a bunch of things we need to do for the upgrade
   gem "bootstrap-sass", "~> 2.0"
 
-  # See https://github.com/sstephenson/execjs#readme for more supported runtimes
-  # IMPORTANT NOTE - as a short term workaround we have installed nodejs on the cuttlefish server
-  # to be the js runtime. This is because we're still using capistrano 2 which is now not working
-  # well with the newer bundler version which means that it can't find therubyracer. Ugh
-  # TODO: Upgrade capistrano 2 -> 3
-  gem "therubyracer", platforms: :ruby
-
-  # Problem with compiling assets in production otherwise
-  gem "less-rails", "4.0.0"
   gem "uglifier"
 end
 
@@ -35,9 +27,7 @@ gem "jquery-rails"
 gem "jbuilder"
 
 gem "eventmachine"
-# We're using a very old version of redis currently which forces us stay at version 5 of sidekiq
-# TODO: Update redis
-gem "sidekiq", "~> 5.1"
+gem "sidekiq", "~> 7.0"
 gem "sinatra", require: nil
 
 gem "batch-loader"
@@ -57,11 +47,7 @@ gem "fog-aws"
 gem "font-awesome-rails"
 gem "friendly_id"
 gem "google-analytics-rails"
-# Looks like it's a bit of a pain to upgrade graphql. So just locking
-# the version for the time being
-# TODO: Upgrade to at least 1.11.7 so we can upgrade ruby to 3.0
-gem "graphql", "~> 1.12.0"
-# And the same for graphql-client though I'm guessing that should be easier to upgrade than graphql
+gem "graphql", "~> 1.13"
 gem "graphql-client", "~> 0.16.0"
 gem "graphql-guard"
 gem "haml-rails"
@@ -78,7 +64,6 @@ gem "nokogiri"
 gem "premailer"
 gem "pundit"
 gem "user_agent_parser"
-gem "virtus"
 
 # For doing the webhooks to external sites
 gem "rest-client"
@@ -88,9 +73,6 @@ gem "rest-client"
 
 # Use unicorn as the app server
 # gem 'unicorn'
-
-# Deploy with Capistrano
-# gem 'capistrano', group: :development
 
 # To use debugger
 # gem 'debugger'
@@ -105,7 +87,6 @@ gem "jwt"
 gem "acme-client"
 
 group :development do
-  gem "capistrano", "~> 2"
   gem "bcrypt_pbkdf", "~> 1.0"
   gem "ed25519", "~> 1.2"
   gem "faker"
@@ -114,7 +95,6 @@ group :development do
   gem "rubocop-graphql", require: false
   gem "rubocop-rails", require: false
   gem "rubocop-rspec", require: false
-  gem "rvm-capistrano", ">= 1.5.6", require: false
   gem "spring"
   gem "spring-commands-rspec"
   # Webrick gives us annoying warnings "could not determine content-length
@@ -134,7 +114,6 @@ end
 
 group :test do
   gem "climate_control"
-  gem "coveralls", require: false
   gem "database_cleaner"
   gem "rails-controller-testing"
   gem "vcr"

@@ -37,3 +37,10 @@ postfix_log/messages
 
 # Use .ansible directory as a virtualenv if you want
 .ansible
+
+# Deployment-specific files — copy from *.example and fill in your values
+provisioning/hosts
+provisioning/group_vars/all/secrets.yml
+
+# Ansible Vault password file — never commit this
+.vault_pass

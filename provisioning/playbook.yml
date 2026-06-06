@@ -4,23 +4,20 @@
   gather_facts: False
   tags: ['python']
   tasks:
-  - name: install python 2 (or python 3 on Ubuntu 20.04)
-    raw: test -e /usr/bin/python || (apt -y update && apt install -y python-minimal) || apt install -y python-is-python3
+  - name: install python3
+    raw: test -e /usr/bin/python3 || (apt -y update && apt install -y python3)
     changed_when: False
 
 - hosts: all
   tags: ['verify']
   pre_tasks:
-    - name: Verify Ansible meets version requirements.
+    - name: Verify Ansible meets minimum version requirement
       assert:
-        # was 2.8
-        that: "ansible_version.major == 2 and ansible_version.minor == 15"
-        msg: >
-          "This currently works with Ansible core 2.15 not {{ansible_version.major}}.{{ansible_version.minor}}"
+        that: "ansible_version.major > 2 or (ansible_version.major == 2 and ansible_version.minor >= 15)"
+        msg: "This playbook requires Ansible 2.15 or later (found {{ ansible_version.major }}.{{ ansible_version.minor }})"
 
 - hosts: all
   become: true
-  #user: root
   roles:
     - { role: deploy-user, tags: ['deploy_user'] }
     - { role: cuttlefish-app, tags: ['cuttlefish_app'] }
